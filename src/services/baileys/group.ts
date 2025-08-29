@@ -17,6 +17,8 @@ export const findGroupByName = async (sock: WASocket, groupName: string): Promis
             return null;
         }
         
+        const userId = sock.user.id; // Captura o ID para usar depois
+        
         // Busca todos os grupos em que o bot participa
         const groups = await sock.groupFetchAllParticipating();
         console.log(`📊 Total de grupos encontrados: ${Object.keys(groups).length}`);
@@ -31,7 +33,7 @@ export const findGroupByName = async (sock: WASocket, groupName: string): Promis
             console.log(`👥 Participantes: ${foundGroup.participants.length}`);
             
             // Verifica se o bot ainda é participante
-            const botParticipant = foundGroup.participants.find(p => p.id === sock.user!.id);
+            const botParticipant = foundGroup.participants.find(p => p.id === userId);
             if (!botParticipant) {
                 console.log(`⚠️ Bot não é mais participante do grupo: ${foundGroup.subject}`);
                 return null;
@@ -63,6 +65,8 @@ export const getAllGroups = async (sock: WASocket): Promise<GroupInfo[]> => {
             return [];
         }
         
+        const userId = sock.user.id; // Captura o ID para usar depois
+        
         const groups = await sock.groupFetchAllParticipating();
         console.log(`📊 Buscando informações de ${Object.keys(groups).length} grupos...`);
         
@@ -71,7 +75,7 @@ export const getAllGroups = async (sock: WASocket): Promise<GroupInfo[]> => {
         for (const [groupId, group] of Object.entries(groups)) {
             try {
                 // Verifica se o bot ainda é participante
-                const botParticipant = group.participants.find(p => p.id === sock.user!.id);
+                const botParticipant = group.participants.find(p => p.id === userId);
                 if (!botParticipant) {
                     console.log(`⚠️ Bot não é mais participante do grupo: ${group.subject}`);
                     continue;
@@ -112,6 +116,8 @@ export const getGroupInfo = async (sock: WASocket, groupId: string): Promise<Gro
             return null;
         }
         
+        const userId = sock.user.id; // Captura o ID para usar depois
+        
         console.log(`🔍 Buscando informações do grupo: ${groupId}`);
         
         const group = await sock.groupMetadata(groupId);
@@ -119,7 +125,7 @@ export const getGroupInfo = async (sock: WASocket, groupId: string): Promise<Gro
         
         // Verifica se o bot ainda é participante
         const participants = await sock.groupMetadata(groupId);
-        const botParticipant = participants.participants.find(p => p.id === sock.user!.id);
+        const botParticipant = participants.participants.find(p => p.id === userId);
         
         if (!botParticipant) {
             console.log(`❌ Bot não é mais participante do grupo: ${group.subject}`);
@@ -154,11 +160,13 @@ export const validateGroupForMessage = async (sock: WASocket, groupId: string): 
             return { valid: false, error: 'Socket não autenticado' };
         }
         
+        const userId = sock.user.id; // Captura o ID para usar depois
+        
         const group = await sock.groupMetadata(groupId);
         const participants = await sock.groupMetadata(groupId);
         
         // Verifica se o bot ainda é participante
-        const botParticipant = participants.participants.find(p => p.id === sock.user!.id);
+        const botParticipant = participants.participants.find(p => p.id === userId);
         if (!botParticipant) {
             return { valid: false, error: 'Bot não é mais participante deste grupo', groupName: group.subject };
         }

@@ -24,15 +24,17 @@ export const sendMessage = async (
         }
 
         // Verifica se o socket ainda está válido
-        if (!sock.user || !sock.user.id) {
+        if (!sock.user?.id) {
             console.log(`❌ Socket inválido para ${name}/${session}`);
             return { success: false, error: 'Socket inválido ou não autenticado.' };
         }
 
+        const userId = sock.user.id; // Captura o ID para usar depois
+
         // Log para debug
         console.log(`📨 Enviando mensagem para: ${contact}`);
         console.log(`📱 Tipo de contato: ${contact.includes('@g.us') ? 'Grupo' : 'Individual'}`);
-        console.log(`👤 Usuário autenticado: ${sock.user.id}`);
+        console.log(`👤 Usuário autenticado: ${userId}`);
 
         // Validações específicas para grupos
         if (contact.includes('@g.us')) {
@@ -43,7 +45,7 @@ export const sendMessage = async (
                 
                 // Verifica se o bot ainda é participante do grupo
                 const participants = await sock.groupMetadata(contact);
-                const botParticipant = participants.participants.find(p => p.id === sock.user.id);
+                const botParticipant = participants.participants.find(p => p.id === userId);
                 
                 if (!botParticipant) {
                     console.log(`❌ Bot não é mais participante do grupo: ${contact}`);

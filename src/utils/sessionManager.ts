@@ -7,7 +7,7 @@ export const cleanupInactiveSessions = async () => {
     const keysToRemove: string[] = [];
     
     for (const [key, sock] of sessions.entries()) {
-        if (!sock || !sock.user || !sock.user.id) {
+        if (!sock || !sock.user?.id) {
             keysToRemove.push(key);
             continue;
         }
@@ -39,7 +39,7 @@ export const getOrCreateSession = async (
         const sock = sessions.get(key);
         
         // Verifica se a conexão ainda está realmente ativa
-        if (sock && sock.user && sock.user.id) {
+        if (sock && sock.user?.id) {
             try {
                 // Tenta fazer uma operação simples para verificar se a conexão está ativa
                 await sock.presenceSubscribe(sock.user.id);
@@ -76,6 +76,6 @@ export const getOrCreateSession = async (
 export const getSessionStats = () => {
     return {
         total: sessions.size,
-        active: Array.from(sessions.values()).filter(sock => sock && sock.user && sock.user.id).length
+        active: Array.from(sessions.values()).filter(sock => sock && sock.user?.id).length
     };
 };
