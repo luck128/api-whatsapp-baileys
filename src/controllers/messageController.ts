@@ -2,9 +2,9 @@ import { Request, Response } from "express";
 import { sendMessage } from "../services/baileys/message";
 
 const postSendMessage = async (req: Request, res: Response) => {
-    const { contact, message } = req.body;
+    const { name, sessionId, contact, message } = req.body;
 
-    if (!contact || !message) {
+    if (!name || !sessionId || !contact || !message) {
         return res.status(400).json({
             code: 400,
             success: false,
@@ -13,7 +13,7 @@ const postSendMessage = async (req: Request, res: Response) => {
     }
 
     try {
-        const result = await sendMessage(`${contact}@s.whatsapp.net`, message);
+        const result = await sendMessage(name, sessionId, `${contact}@s.whatsapp.net`, message);
 
         if (result.needsAuth) {
             return res.status(200).json({
@@ -53,6 +53,41 @@ const postSendMessage = async (req: Request, res: Response) => {
     }
 }
 
+const postSendMessagePerBlocks = async (req: Request, res: Response) => {
+    const { name, sessionId, block } = req.body;
+
+    if (!name || !sessionId || !block) return res.status(400).json({ code: 400, success: false, message: 'Parâmetros inválidos' });
+
+    try {
+        res.status(200).json({
+            code: 200,
+            success: true,
+            message: 'INFO: Os blocos de mensagens estão sendo preparados para o envio.'
+        });
+
+        (async () => {
+            try {
+                await new Promise(resolve => setTimeout(resolve, 10000));
+
+                await Promise.all(
+                    block.map((contact: string, message: string) => sendMessage(name, sessionId, `${contact}@s.whatsapp.net`, message)) 
+                );
+
+                console.log("Mensagens enviadas com sucesso.");
+            } catch (err) {
+                console.error("Erro ao enviar mensagens:", err);
+            }
+        })();
+    } catch (error) {
+        return res.status(500).json({
+            code: 500,
+            success: false,
+            message: 'Erro interno do servidor.'
+        });
+    }
+}
+
 module.exports = {
-    postSendMessage
+    postSendMessage,
+    postSendMessagePerBlocks
 }

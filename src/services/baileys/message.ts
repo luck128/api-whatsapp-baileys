@@ -1,26 +1,30 @@
-import { initializeSockState } from "./initialize";
-import { ISock } from "./types";
+import { getOrCreateSession } from "../../utils/sessionManager";
 
 type SendMessageResult = {
     success: boolean;
     needsAuth?: boolean;
     error?: string;
     qr?: string;
-}
+};
 
-export const sendMessage = async (contact: string, message: string): Promise<SendMessageResult> => {
+export const sendMessage = async (
+    name: string,
+    session: string,
+    contact: string,
+    message: string
+): Promise<SendMessageResult> => {
     try {
-        const { sock, isConnected, qr } = await initializeSockState() as ISock;
+        const { sock, isConnected, qr } = await getOrCreateSession(name, session);
 
-        if (!isConnected) {
+        if (!isConnected || !sock) {
             return { success: false, needsAuth: true, qr };
         }
 
-        await sock.sendMessage(contact, { text: message });
-        return { success: true };
+        await sock.sendMessage(`${contact}@s.whatsapp.net`, { text: message });
 
-    } catch (error) {
+        return { success: true };
+    } catch (error: any) {
         console.error('Erro ao enviar mensagem:', error);
         return { success: false, error: 'Erro ao enviar mensagem.' };
     }
-}
+};
