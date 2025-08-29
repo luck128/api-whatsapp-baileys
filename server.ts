@@ -14,6 +14,6 @@ app.use(cors({
 
 app.use('/api/v1', router);
 
-app.listen(process.env.PORT, () => {
-    console.log('Server is running on:', process.env.PORT);
+app.listen(3306, () => {
+    console.log('Server is running on:', 3306);
 })
