@@ -20,11 +20,17 @@ export const sendMessage = async (
             return { success: false, needsAuth: true, qr };
         }
 
-        await sock.sendMessage(`${contact}@s.whatsapp.net`, { text: message });
+        // Log para debug
+        console.log(`Enviando mensagem para: ${contact}`);
+        console.log(`Tipo de contato: ${contact.includes('@g.us') ? 'Grupo' : 'Individual'}`);
 
+        await sock.sendMessage(contact, { text: message });
+
+        console.log(`Mensagem enviada com sucesso para: ${contact}`);
         return { success: true };
     } catch (error: any) {
         console.error('Erro ao enviar mensagem:', error);
+        console.error('Contato que falhou:', contact);
         return { success: false, error: 'Erro ao enviar mensagem.' };
     }
 };
