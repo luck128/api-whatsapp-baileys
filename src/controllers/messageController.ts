@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { sendMessage } from "../services/baileys/message";
-import { findGroupByName } from "../services/baileys/group";
+import { findGroupByName, validateGroupForMessage } from "../services/baileys/group";
 import { getOrCreateSession } from "../utils/sessionManager";
 
 // Função auxiliar para formatar o contato corretamente
@@ -39,10 +39,14 @@ const postSendMessage = async (req: Request, res: Response) => {
     }
 
     try {
+        console.log(`📤 Iniciando envio de mensagem para: ${contact}`);
+        console.log(`👤 Sessão: ${name}/${sessionId}`);
+        
         // Primeiro, obtém a sessão para ter acesso ao socket
         const { sock, isConnected, qr } = await getOrCreateSession(name, sessionId);
 
         if (!isConnected || !sock) {
+            console.log(`❌ Sessão não conectada para ${name}/${sessionId}`);
             return res.status(200).json({
                 code: 200,
                 success: true,
@@ -53,6 +57,7 @@ const postSendMessage = async (req: Request, res: Response) => {
 
         // Formata o contato (pode ser número ou nome de grupo)
         const formattedContact = await formatContact(contact, sock);
+        console.log(`📱 Contato formatado: ${formattedContact}`);
         
         // Validação: se não conseguiu formatar o contato, é porque não encontrou o grupo
         if (!formattedContact.includes('@s.whatsapp.net') && !formattedContact.includes('@g.us')) {
@@ -63,9 +68,30 @@ const postSendMessage = async (req: Request, res: Response) => {
             });
         }
         
+        // Validação específica para grupos
+        if (formattedContact.includes('@g.us')) {
+            console.log(`👥 Validando grupo antes do envio: ${formattedContact}`);
+            const groupValidation = await validateGroupForMessage(sock, formattedContact.replace('@g.us', ''));
+            
+            if (!groupValidation.valid) {
+                console.log(`❌ Validação do grupo falhou: ${groupValidation.error}`);
+                return res.status(400).json({
+                    code: 400,
+                    success: false,
+                    message: `Erro ao validar grupo: ${groupValidation.error}`,
+                    groupName: groupValidation.groupName
+                });
+            }
+            
+            console.log(`✅ Grupo validado com sucesso: ${groupValidation.groupName}`);
+        }
+        
+        // Envia a mensagem
+        console.log(`🚀 Enviando mensagem...`);
         const result = await sendMessage(name, sessionId, formattedContact, message);
 
         if (result.needsAuth) {
+            console.log(`🔐 Sessão precisa de autenticação`);
             return res.status(200).json({
                 code: 200,
                 success: true,
@@ -75,6 +101,7 @@ const postSendMessage = async (req: Request, res: Response) => {
         }
 
         if (!result.success) {
+            console.log(`❌ Falha no envio: ${result.error}`);
             return res.status(502).json({
                 code: 502,
                 success: false,
@@ -84,6 +111,8 @@ const postSendMessage = async (req: Request, res: Response) => {
 
         // Determina o tipo de contato para a resposta
         const contactType = formattedContact.includes('@g.us') ? 'group' : 'individual';
+        
+        console.log(`✅ Mensagem enviada com sucesso para ${contactType}: ${contact}`);
         
         return res.status(200).json({
             code: 200,
@@ -99,12 +128,19 @@ const postSendMessage = async (req: Request, res: Response) => {
             }
         });
 
-    } catch (error) {
-        console.error('Erro no controller:', error);
+    } catch (error: any) {
+        console.error('❌ Erro no controller:', error);
+        console.error('📋 Detalhes do erro:', {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+        });
+        
         return res.status(500).json({
             code: 500,
             success: false,
-            message: 'Erro interno do servidor.'
+            message: 'Erro interno do servidor.',
+            error: error.message
         });
     }
 }
