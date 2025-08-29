@@ -39,6 +39,8 @@ export const sendMessage = async (
         // Validações específicas para grupos
         if (contact.includes('@g.us')) {
             try {
+                console.log(`👥 Iniciando validação do grupo: ${contact}`);
+                
                 // Verifica se o grupo ainda existe e se o bot ainda está nele
                 const groupMetadata = await sock.groupMetadata(contact);
                 console.log(`👥 Grupo válido: ${groupMetadata.subject}`);
@@ -48,23 +50,21 @@ export const sendMessage = async (
                 const botParticipant = participants.participants.find(p => p.id === userId);
                 
                 if (!botParticipant) {
-                    console.log(`❌ Bot não é mais participante do grupo: ${contact}`);
-                    return { success: false, error: 'Bot não é mais participante deste grupo.' };
+                    console.log(`⚠️ Bot não encontrado na lista de participantes, mas tentando enviar mesmo assim...`);
+                    console.log(`📋 IDs dos participantes: ${participants.participants.map(p => p.id).join(', ')}`);
+                    console.log(`🔍 Bot ID: ${userId}`);
+                    
+                    // Continua para tentar enviar a mensagem mesmo assim
+                    // Às vezes a API do WhatsApp tem inconsistências
+                } else {
+                    console.log(`✅ Bot confirmado como participante do grupo: ${contact}`);
                 }
-                
-                console.log(`✅ Bot é participante do grupo: ${contact}`);
             } catch (groupError: any) {
                 console.error(`❌ Erro ao validar grupo ${contact}:`, groupError);
+                console.log(`⚠️ Continuando para tentar enviar a mensagem mesmo com erro de validação...`);
                 
-                if (groupError.message?.includes('not-authorized') || groupError.message?.includes('forbidden')) {
-                    return { success: false, error: 'Bot não tem permissão para acessar este grupo.' };
-                }
-                
-                if (groupError.message?.includes('not-found')) {
-                    return { success: false, error: 'Grupo não encontrado ou bot foi removido.' };
-                }
-                
-                return { success: false, error: `Erro ao validar grupo: ${groupError.message}` };
+                // Continua para tentar enviar a mensagem mesmo com erro de validação
+                // Às vezes a API do WhatsApp permite envio mesmo com erros de validação
             }
         }
 

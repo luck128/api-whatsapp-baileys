@@ -161,18 +161,54 @@ export const validateGroupForMessage = async (sock: WASocket, groupId: string): 
         }
         
         const userId = sock.user.id; // Captura o ID para usar depois
+        console.log(`🔍 Validando grupo ${groupId} para envio de mensagem...`);
+        console.log(`👤 ID do usuário autenticado: ${userId}`);
         
         const group = await sock.groupMetadata(groupId);
-        const participants = await sock.groupMetadata(groupId);
+        console.log(`✅ Grupo encontrado: ${group.subject}`);
+        console.log(`👥 Total de participantes: ${group.participants.length}`);
+        
+        // Log detalhado dos participantes para debug
+        console.log(`🔍 Verificando participantes do grupo...`);
+        group.participants.forEach((participant, index) => {
+            console.log(`  ${index + 1}. ID: ${participant.id}, Admin: ${participant.admin || false}`);
+        });
         
         // Verifica se o bot ainda é participante
-        const botParticipant = participants.participants.find(p => p.id === userId);
+        const botParticipant = group.participants.find(p => p.id === userId);
+        console.log(`🔍 Procurando bot (${userId}) na lista de participantes...`);
+        
         if (!botParticipant) {
-            return { valid: false, error: 'Bot não é mais participante deste grupo', groupName: group.subject };
+            console.log(`⚠️ Bot não encontrado na lista de participantes do grupo: ${group.subject}`);
+            console.log(`📋 IDs dos participantes: ${group.participants.map(p => p.id).join(', ')}`);
+            console.log(`🔍 Bot ID: ${userId}`);
+            
+            // Tenta buscar informações atualizadas do grupo
+            try {
+                console.log(`🔄 Tentando buscar informações atualizadas do grupo...`);
+                const updatedGroup = await sock.groupMetadata(groupId);
+                console.log(`📊 Grupo atualizado - Participantes: ${updatedGroup.participants.length}`);
+                
+                const updatedBotParticipant = updatedGroup.participants.find(p => p.id === userId);
+                if (updatedBotParticipant) {
+                    console.log(`✅ Bot encontrado nas informações atualizadas do grupo!`);
+                    return { valid: true, groupName: group.subject };
+                } else {
+                    console.log(`❌ Bot ainda não encontrado mesmo nas informações atualizadas`);
+                    console.log(`📋 IDs dos participantes atualizados: ${updatedGroup.participants.map(p => p.id).join(', ')}`);
+                    return { valid: false, error: 'Bot não é mais participante deste grupo', groupName: group.subject };
+                }
+            } catch (updateError: any) {
+                console.log(`⚠️ Erro ao buscar informações atualizadas: ${updateError.message}`);
+                return { valid: false, error: 'Erro ao verificar participantes do grupo', groupName: group.subject };
+            }
         }
         
+        console.log(`✅ Bot confirmado como participante do grupo: ${group.subject}`);
         return { valid: true, groupName: group.subject };
     } catch (error: any) {
+        console.error(`❌ Erro ao validar grupo ${groupId}:`, error);
+        
         if (error.message?.includes('not-authorized') || error.message?.includes('forbidden')) {
             return { valid: false, error: 'Bot não tem permissão para acessar este grupo' };
         }
