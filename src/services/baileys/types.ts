@@ -5,3 +5,10 @@ export type ISock = {
     sock: WASocket;
     qr: string;
 }
+
+export interface ISessionUserRes {
+    success: boolean;
+    id?: string;
+    name?: string;
+    error?: string;
+}

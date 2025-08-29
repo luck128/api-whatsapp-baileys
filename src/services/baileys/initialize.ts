@@ -1,13 +1,18 @@
 import makeWASocket, { DisconnectReason, useMultiFileAuthState } from "@whiskeysockets/baileys";
 import { Boom } from '@hapi/boom'
+import { WASocket } from "@whiskeysockets/baileys";
 import P from "pino";
 
-export const initializeSockState = async (): Promise<Object> => {
-    const { state, saveCreds } = await useMultiFileAuthState('./auth');
+export const initializeSockState = async (
+  name: string,
+  sessionId: string
+): Promise<{ isConnected: boolean, sock?: WASocket, qr?: string }> => {
+    const { state, saveCreds } = await useMultiFileAuthState(`./auth/${name}/${sessionId}`);
     const sock = makeWASocket({
         auth: state,
         logger: P(),
-        markOnlineOnConnect: true
+        markOnlineOnConnect: true,
+        syncFullHistory: false
     });
 
     return new Promise((resolve, reject) => {
@@ -35,14 +40,16 @@ export const initializeSockState = async (): Promise<Object> => {
                 }
 
                 if (shouldReconnect) {
-                    initializeSockState().then(resolve).catch(reject);
+                    initializeSockState(name, sessionId).then(resolve).catch(reject);
                 }
             }
 
-            if (connection === 'open' && !resolved) {
-                resolved = true;
-                console.log('✅ Conexão estabelecida!');
-                resolve({ isConnected: true, sock });
+            if (connection === 'open') {
+                console.log('✅ Já conectado!');
+                if (!resolved) {
+                    resolved = true;
+                    resolve({ isConnected: true, sock });
+                }
             }
         });
     });
