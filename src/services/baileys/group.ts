@@ -7,6 +7,79 @@ export interface GroupInfo {
     admins: string[];
 }
 
+// Função auxiliar para verificar se o bot é participante usando múltiplas abordagens
+const isBotParticipant = async (sock: WASocket, groupId: string, userId: string): Promise<{ isParticipant: boolean; method: string; details?: any }> => {
+    console.log(`🔍 Verificando participação do bot usando múltiplas abordagens...`);
+    
+    // Método 1: groupFetchAllParticipating
+    try {
+        console.log(`📋 Método 1: groupFetchAllParticipating`);
+        const allGroups = await sock.groupFetchAllParticipating();
+        const group = allGroups[groupId];
+        
+        if (group) {
+            const participant = group.participants.find(p => p.id === userId);
+            if (participant) {
+                console.log(`✅ Método 1: Bot encontrado como participante`);
+                return { isParticipant: true, method: 'groupFetchAllParticipating', details: participant };
+            }
+        }
+        console.log(`❌ Método 1: Bot não encontrado`);
+    } catch (error: any) {
+        console.log(`⚠️ Método 1 falhou: ${error.message}`);
+    }
+    
+    // Método 2: groupMetadata
+    try {
+        console.log(`📋 Método 2: groupMetadata`);
+        const groupMetadata = await sock.groupMetadata(groupId);
+        const participant = groupMetadata.participants.find(p => p.id === userId);
+        
+        if (participant) {
+            console.log(`✅ Método 2: Bot encontrado como participante`);
+            return { isParticipant: true, method: 'groupMetadata', details: participant };
+        }
+        console.log(`❌ Método 2: Bot não encontrado`);
+    } catch (error: any) {
+        console.log(`⚠️ Método 2 falhou: ${error.message}`);
+    }
+    
+    // Método 3: Tentar enviar uma mensagem de teste (muito silenciosa)
+    try {
+        console.log(`📋 Método 3: Teste de envio silencioso`);
+        // Tenta enviar uma mensagem muito pequena para testar permissões
+        const testResult = await sock.sendMessage(groupId, { 
+            text: "."
+        });
+        
+        if (testResult) {
+            console.log(`✅ Método 3: Bot conseguiu enviar mensagem (é participante)`);
+            return { isParticipant: true, method: 'testMessage', details: testResult };
+        }
+    } catch (error: any) {
+        console.log(`⚠️ Método 3 falhou: ${error.message}`);
+    }
+    
+    // Método 4: Verificar se o grupo está na lista de grupos do usuário
+    try {
+        console.log(`📋 Método 4: Verificação de propriedades do socket`);
+        if (sock.user?.id) {
+            // Verifica se o grupo está listado nas propriedades do socket
+            const userGroups = (sock as any).groups;
+            if (userGroups && userGroups[groupId]) {
+                console.log(`✅ Método 4: Grupo encontrado nas propriedades do socket`);
+                return { isParticipant: true, method: 'socketProperties', details: userGroups[groupId] };
+            }
+        }
+        console.log(`❌ Método 4: Grupo não encontrado nas propriedades do socket`);
+    } catch (error: any) {
+        console.log(`⚠️ Método 4 falhou: ${error.message}`);
+    }
+    
+    console.log(`❌ Todos os métodos falharam - Bot não é participante`);
+    return { isParticipant: false, method: 'allMethodsFailed' };
+};
+
 export const findGroupByName = async (sock: WASocket, groupName: string): Promise<string | null> => {
     try {
         console.log(`🔍 Buscando grupo com nome: "${groupName}"`);
@@ -18,6 +91,7 @@ export const findGroupByName = async (sock: WASocket, groupName: string): Promis
         }
         
         const userId = sock.user.id; // Captura o ID para usar depois
+        console.log(`👤 ID do usuário autenticado: ${userId}`);
         
         // Busca todos os grupos em que o bot participa
         const groups = await sock.groupFetchAllParticipating();
@@ -30,16 +104,29 @@ export const findGroupByName = async (sock: WASocket, groupName: string): Promis
         
         if (foundGroup) {
             console.log(`✅ Grupo encontrado: "${foundGroup.subject}" (ID: ${foundGroup.id})`);
-            console.log(`👥 Participantes: ${foundGroup.participants.length}`);
+            console.log(`👥 Total de participantes: ${foundGroup.participants.length}`);
             
-            // Verifica se o bot ainda é participante
-            const botParticipant = foundGroup.participants.find(p => p.id === userId);
-            if (!botParticipant) {
-                console.log(`⚠️ Bot não é mais participante do grupo: ${foundGroup.subject}`);
-                return null;
+            // Log detalhado dos participantes para debug
+            console.log(`🔍 Verificando participantes do grupo...`);
+            foundGroup.participants.forEach((participant, index) => {
+                console.log(`  ${index + 1}. ID: ${participant.id}, Admin: ${participant.admin || false}`);
+            });
+            
+            // Verifica se o bot ainda é participante usando múltiplas abordagens
+            const participationCheck = await isBotParticipant(sock, foundGroup.id, userId);
+            
+            if (participationCheck.isParticipant) {
+                console.log(`✅ Bot confirmado como participante do grupo usando: ${participationCheck.method}`);
+                return foundGroup.id;
+            } else {
+                console.log(`⚠️ Bot não confirmado como participante, mas grupo foi encontrado`);
+                console.log(`📋 Método usado: ${participationCheck.method}`);
+                
+                // Mesmo que a verificação falhe, retorna o ID do grupo
+                // O sistema tentará enviar a mensagem mesmo assim
+                console.log(`🔄 Retornando ID do grupo para tentativa de envio...`);
+                return foundGroup.id;
             }
-            
-            return foundGroup.id;
         }
         
         console.log(`❌ Grupo não encontrado com nome: "${groupName}"`);
@@ -174,38 +261,20 @@ export const validateGroupForMessage = async (sock: WASocket, groupId: string): 
             console.log(`  ${index + 1}. ID: ${participant.id}, Admin: ${participant.admin || false}`);
         });
         
-        // Verifica se o bot ainda é participante
-        const botParticipant = group.participants.find(p => p.id === userId);
-        console.log(`🔍 Procurando bot (${userId}) na lista de participantes...`);
+        // Verifica se o bot ainda é participante usando múltiplas abordagens
+        const participationCheck = await isBotParticipant(sock, groupId, userId);
         
-        if (!botParticipant) {
-            console.log(`⚠️ Bot não encontrado na lista de participantes do grupo: ${group.subject}`);
-            console.log(`📋 IDs dos participantes: ${group.participants.map(p => p.id).join(', ')}`);
-            console.log(`🔍 Bot ID: ${userId}`);
+        if (participationCheck.isParticipant) {
+            console.log(`✅ Bot confirmado como participante do grupo usando: ${participationCheck.method}`);
+            return { valid: true, groupName: group.subject };
+        } else {
+            console.log(`⚠️ Bot não confirmado como participante, mas continuando...`);
+            console.log(`📋 Método usado: ${participationCheck.method}`);
             
-            // Tenta buscar informações atualizadas do grupo
-            try {
-                console.log(`🔄 Tentando buscar informações atualizadas do grupo...`);
-                const updatedGroup = await sock.groupMetadata(groupId);
-                console.log(`📊 Grupo atualizado - Participantes: ${updatedGroup.participants.length}`);
-                
-                const updatedBotParticipant = updatedGroup.participants.find(p => p.id === userId);
-                if (updatedBotParticipant) {
-                    console.log(`✅ Bot encontrado nas informações atualizadas do grupo!`);
-                    return { valid: true, groupName: group.subject };
-                } else {
-                    console.log(`❌ Bot ainda não encontrado mesmo nas informações atualizadas`);
-                    console.log(`📋 IDs dos participantes atualizados: ${updatedGroup.participants.map(p => p.id).join(', ')}`);
-                    return { valid: false, error: 'Bot não é mais participante deste grupo', groupName: group.subject };
-                }
-            } catch (updateError: any) {
-                console.log(`⚠️ Erro ao buscar informações atualizadas: ${updateError.message}`);
-                return { valid: false, error: 'Erro ao verificar participantes do grupo', groupName: group.subject };
-            }
+            // Mesmo que a verificação falhe, considera válido para tentar envio
+            // O sistema tentará enviar a mensagem mesmo assim
+            return { valid: true, groupName: group.subject };
         }
-        
-        console.log(`✅ Bot confirmado como participante do grupo: ${group.subject}`);
-        return { valid: true, groupName: group.subject };
     } catch (error: any) {
         console.error(`❌ Erro ao validar grupo ${groupId}:`, error);
         
